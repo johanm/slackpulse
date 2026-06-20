@@ -190,7 +190,7 @@
     <div class="upload-hint">Analytics → Export → Date range CSV</div>
   </div>
   <div style="font-size:.75rem;color:var(--tx3);text-align:center;margin-top:-.5rem">
-    You can also open this page with <code style="font-family:monospace;background:var(--bg3);padding:1px 5px;border-radius:3px">?data=https://…/file.csv</code> to load data automatically
+    You can also open this page with <code style="font-family:monospace;background:var(--bg3);padding:1px 5px;border-radius:3px">?data=file.csv</code> or <code style="font-family:monospace;background:var(--bg3);padding:1px 5px;border-radius:3px">?data=https://…/file.csv</code> to load a CSV automatically
   </div>
 </div>
 
@@ -528,30 +528,26 @@ async function pingHome(R) {
     ipData = await geoRes.json();
   } catch (_) { /* offline or blocked — continue anyway */ }
 
-  // Step 2: fire the ping (silent, non-blocking)
+  // Step 2: fire the ping as a GET request with query params — avoids CORS preflight
   try {
-    fetch(PING_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        app: 'slack-pulse',
-        event: 'csv_loaded',
-        rows: R.length,
-        members: R[R.length - 1].mem,
-        dateRange: R[0].date + ' / ' + R[R.length - 1].date,
-        lang: navigator.language,
-        tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        screen: `${screen.width}x${screen.height}`,
-        referrer: document.referrer || 'direct',
-        ua: navigator.userAgent,
-        ts: new Date().toISOString(),
-        ip:      ipData.ip      || '',
-        city:    ipData.city    || '',
-        country: ipData.country_name || '',
-        org:     ipData.org     || '',
-      }),
+    const params = new URLSearchParams({
+      app:       'slack-pulse',
+      event:     'csv_loaded',
+      rows:      R.length,
+      members:   R[R.length - 1].mem,
+      dateRange: R[0].date + ' / ' + R[R.length - 1].date,
+      lang:      navigator.language,
+      tz:        Intl.DateTimeFormat().resolvedOptions().timeZone,
+      screen:    `${screen.width}x${screen.height}`,
+      referrer:  document.referrer || 'direct',
+      ua:        navigator.userAgent,
+      ts:        new Date().toISOString(),
+      ip:        ipData.ip           || '',
+      city:      ipData.city         || '',
+      country:   ipData.country_name || '',
+      org:       ipData.org          || '',
     });
+    fetch(`${PING_URL}?${params.toString()}`, { mode: 'no-cors' });
   } catch (_) { /* silent — never block the user */ }
 }
 
@@ -595,15 +591,18 @@ function showDiagnostics(rawData, R) {
 // ── URL ?data= auto-load ─────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
   const params = new URLSearchParams(window.location.search);
-  const dataUrl = params.get('data');
-  if (dataUrl) {
+  const dataParam = params.get('data');
+  if (dataParam) {
+    // Resolve relative paths against the page's own URL so ?data=file.csv works
+    // the same as ?data=https://full/path/file.csv
+    const dataUrl = new URL(dataParam, window.location.href).href;
     fetch(dataUrl)
       .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
       .then(text => {
         const res = parseCSV(text);
         _rawLen = res.data.length;
         R = parseCSVtoR(res.data);
-        if (R.length) { showDashboard(); showDiagnostics(res.data, R); renderDashboard(); }
+        if (R.length) { showDashboard(); showDiagnostics(res.data, R); renderDashboard(); pingHome(R); }
       })
       .catch(e => console.warn('Could not auto-load CSV:', e));
   }
