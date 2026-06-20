@@ -824,24 +824,24 @@ document.getElementById('insights').innerHTML = [
 function drawActivity(agg) {
   if (agg==='weekly') {
     mkChart('chart-activity',{type:'bar',data:{labels:W.map(w=>lbl(w.date,'weekly')),datasets:[
-      {label:'Messages',data:W.map(w=>w.msgs),backgroundColor:C.indigo+'55',borderRadius:2,yAxisID:'y',order:2},
-      {label:'Avg daily active',data:W.map(w=>+w.dapAvg.toFixed(1)),type:'line',borderColor:C.teal,fill:false,tension:.3,pointRadius:3,borderWidth:2,yAxisID:'y2',order:1},
+      {label:'Messages',            data:W.map(w=>w.msgs), backgroundColor:C.indigo+'55',borderRadius:2,yAxisID:'y',order:2},
+      {label:'Weekly active people',data:W.map(w=>w.wap),  type:'line',borderColor:C.teal,fill:false,tension:.3,pointRadius:3,borderWidth:2,yAxisID:'y2',order:1},
     ]},options:{...baseOpts(),responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
       plugins:{legend:{position:'bottom',labels:{color:TC,boxWidth:12,padding:12}}},
       scales:{x:baseX,y:{...baseY,title:{display:true,text:'Messages',color:TC}},
               y2:{position:'right',grid:{drawOnChartArea:false},ticks:{color:C.teal},beginAtZero:true,title:{display:true,text:'Active people',color:C.teal}}}}});
   } else if (agg==='monthly') {
     mkChart('chart-activity',{type:'bar',data:{labels:M.map(m=>lbl(m.date,'monthly')),datasets:[
-      {label:'Messages',data:M.map(m=>m.msgs),backgroundColor:C.indigo+'55',borderRadius:4,yAxisID:'y',order:2},
-      {label:'Avg daily active',data:M.map(m=>+m.dapAvg.toFixed(1)),type:'line',borderColor:C.teal,fill:false,tension:.3,pointRadius:4,borderWidth:2,yAxisID:'y2',order:1},
+      {label:'Messages',             data:M.map(m=>m.msgs), backgroundColor:C.indigo+'55',borderRadius:4,yAxisID:'y',order:2},
+      {label:'Monthly active people',data:M.map(m=>m.map),  type:'line',borderColor:C.teal,fill:false,tension:.3,pointRadius:4,borderWidth:2,yAxisID:'y2',order:1},
     ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
       plugins:{legend:{position:'bottom',labels:{color:TC,boxWidth:12,padding:12}}},
       scales:{x:baseX,y:{...baseY,title:{display:true,text:'Messages',color:TC}},
               y2:{position:'right',grid:{drawOnChartArea:false},ticks:{color:C.teal},beginAtZero:true,title:{display:true,text:'Active people',color:C.teal}}}}});
   } else {
     mkChart('chart-activity',{type:'bar',data:{labels:R.map(r=>lbl(r.date,'daily')),datasets:[
-      {label:'Messages',data:R.map(r=>r.msgs),backgroundColor:C.indigo+'55',borderRadius:2,yAxisID:'y',order:2},
-      {label:'Active people',data:R.map(r=>r.dap),type:'line',borderColor:C.teal,fill:false,tension:.3,pointRadius:0,borderWidth:2,yAxisID:'y2',order:1},
+      {label:'Messages',           data:R.map(r=>r.msgs), backgroundColor:C.indigo+'55',borderRadius:2,yAxisID:'y',order:2},
+      {label:'Daily active people',data:R.map(r=>r.dap),  type:'line',borderColor:C.teal,fill:false,tension:.3,pointRadius:0,borderWidth:2,yAxisID:'y2',order:1},
     ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
       plugins:{legend:{position:'bottom',labels:{color:TC,boxWidth:12,padding:12}}},
       scales:{x:baseX,y:{...baseY,title:{display:true,text:'Messages',color:TC}},
