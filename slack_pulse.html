@@ -668,31 +668,47 @@ function aggWeekly(rows) {
     const d = new Date(r.date + 'T00:00:00'), day = d.getDay();
     const mon = new Date(d); mon.setDate(d.getDate() - ((day+6)%7));
     const k = mon.toISOString().slice(0,10);
-    if (!b[k]) b[k] = {date:k,msgs:0,msgPub:0,msgPriv:0,msgDm:0,dap:0,dpop:0,n:0};
-    b[k].msgs   += r.msgs;
-    b[k].msgPub += r.msgPub;
-    b[k].msgPriv+= r.msgPriv;
-    b[k].msgDm  += r.msgDm;
-    b[k].dap    += r.dap;
-    b[k].dpop   += r.dpop;
+    if (!b[k]) b[k] = {date:k,msgs:0,msgPub:0,msgPriv:0,msgDm:0,msgShared:0,dap:0,dpop:0,n:0,wap:0,wpop:0};
+    b[k].msgs      += r.msgs;
+    b[k].msgPub    += r.msgPub;
+    b[k].msgPriv   += r.msgPriv;
+    b[k].msgDm     += r.msgDm;
+    b[k].msgShared += r.msgShared || 0;
+    b[k].dap       += r.dap;
+    b[k].dpop      += r.dpop;
     b[k].n++;
+    // WAP/WPOP: take the last (highest) value seen in the week — it covers the full 7-day window
+    if (r.wap  > b[k].wap)  b[k].wap  = r.wap;
+    if (r.wpop > b[k].wpop) b[k].wpop = r.wpop;
   }
-  return Object.keys(b).sort().map(k => ({...b[k], dapAvg: b[k].dap/b[k].n, dpopAvg: b[k].dpop/b[k].n}));
+  return Object.keys(b).sort().map(k => ({
+    ...b[k],
+    dapAvg:  b[k].dap  / b[k].n,
+    dpopAvg: b[k].dpop / b[k].n,
+  }));
 }
 function aggMonthly(rows) {
   const b = {};
   for (const r of rows) {
     const k = r.date.slice(0,7);
-    if (!b[k]) b[k] = {date:k+'-01',msgs:0,msgPub:0,msgPriv:0,msgDm:0,dap:0,dpop:0,n:0};
-    b[k].msgs   += r.msgs;
-    b[k].msgPub += r.msgPub;
-    b[k].msgPriv+= r.msgPriv;
-    b[k].msgDm  += r.msgDm;
-    b[k].dap    += r.dap;
-    b[k].dpop   += r.dpop;
+    if (!b[k]) b[k] = {date:k+'-01',msgs:0,msgPub:0,msgPriv:0,msgDm:0,msgShared:0,dap:0,dpop:0,n:0,map:0,mpop:0};
+    b[k].msgs      += r.msgs;
+    b[k].msgPub    += r.msgPub;
+    b[k].msgPriv   += r.msgPriv;
+    b[k].msgDm     += r.msgDm;
+    b[k].msgShared += r.msgShared || 0;
+    b[k].dap       += r.dap;
+    b[k].dpop      += r.dpop;
     b[k].n++;
+    // MAP/MPOP: take the last value seen in the month — it covers the full 28-day rolling window
+    if (r.map  > b[k].map)  b[k].map  = r.map;
+    if (r.mpop > b[k].mpop) b[k].mpop = r.mpop;
   }
-  return Object.keys(b).sort().map(k => ({...b[k], dapAvg: b[k].dap/b[k].n, dpopAvg: b[k].dpop/b[k].n}));
+  return Object.keys(b).sort().map(k => ({
+    ...b[k],
+    dapAvg:  b[k].dap  / b[k].n,
+    dpopAvg: b[k].dpop / b[k].n,
+  }));
 }
 
 const W = aggWeekly(R);
@@ -897,19 +913,21 @@ mkChart('chart-openness',{type:'line',data:{labels:R.map(r=>lbl(r.date,'daily'))
 // ── Chart: Lurker ─────────────────────────────────────────────────────────────
 function drawLurker(agg) {
   if (agg==='weekly') {
+    // Use actual WAP/WPOP columns — these are true 7-day unique counts, not averages of daily
     mkChart('chart-lurker',{type:'line',data:{labels:W.map(w=>lbl(w.date,'weekly')),datasets:[
-      {label:'Active (avg/day)', data:W.map(w=>+w.dapAvg.toFixed(1)),borderColor:C.teal,backgroundColor:C.tealA,fill:true,tension:.3,pointRadius:3,borderWidth:2},
-      {label:'Posting (avg/day)',data:W.map(w=>+w.dpopAvg.toFixed(1)),borderColor:C.indigo,backgroundColor:C.indigoA,fill:true,tension:.3,pointRadius:3,borderWidth:2},
+      {label:'Weekly active people', data:W.map(w=>w.wap),  borderColor:C.teal,  backgroundColor:C.tealA,  fill:true,tension:.3,pointRadius:3,borderWidth:2},
+      {label:'Weekly people posting',data:W.map(w=>w.wpop), borderColor:C.indigo,backgroundColor:C.indigoA,fill:true,tension:.3,pointRadius:3,borderWidth:2},
     ]},options:{...baseOpts('People'),responsive:true,maintainAspectRatio:false}});
   } else if (agg==='monthly') {
+    // Use actual MAP/MPOP columns — these are true 28-day rolling unique counts
     mkChart('chart-lurker',{type:'line',data:{labels:M.map(m=>lbl(m.date,'monthly')),datasets:[
-      {label:'Active (avg/day)', data:M.map(m=>+m.dapAvg.toFixed(1)),borderColor:C.teal,backgroundColor:C.tealA,fill:true,tension:.3,pointRadius:4,borderWidth:2},
-      {label:'Posting (avg/day)',data:M.map(m=>+m.dpopAvg.toFixed(1)),borderColor:C.indigo,backgroundColor:C.indigoA,fill:true,tension:.3,pointRadius:4,borderWidth:2},
+      {label:'Monthly active people', data:M.map(m=>m.map),  borderColor:C.teal,  backgroundColor:C.tealA,  fill:true,tension:.3,pointRadius:4,borderWidth:2},
+      {label:'Monthly people posting',data:M.map(m=>m.mpop), borderColor:C.indigo,backgroundColor:C.indigoA,fill:true,tension:.3,pointRadius:4,borderWidth:2},
     ]},options:{...baseOpts('People'),responsive:true,maintainAspectRatio:false}});
   } else {
     mkChart('chart-lurker',{type:'line',data:{labels:R.map(r=>lbl(r.date,'daily')),datasets:[
-      {label:'Active people', data:R.map(r=>r.dap),  borderColor:C.teal,  backgroundColor:C.tealA,  fill:true,tension:.3,pointRadius:0,borderWidth:2},
-      {label:'People posting',data:R.map(r=>r.dpop), borderColor:C.indigo,backgroundColor:C.indigoA,fill:true,tension:.3,pointRadius:0,borderWidth:2},
+      {label:'Daily active people', data:R.map(r=>r.dap),  borderColor:C.teal,  backgroundColor:C.tealA,  fill:true,tension:.3,pointRadius:0,borderWidth:2},
+      {label:'Daily people posting',data:R.map(r=>r.dpop), borderColor:C.indigo,backgroundColor:C.indigoA,fill:true,tension:.3,pointRadius:0,borderWidth:2},
     ]},options:{...baseOpts('People'),responsive:true,maintainAspectRatio:false}});
   }
 }
