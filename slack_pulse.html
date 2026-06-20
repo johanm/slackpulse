@@ -1,0 +1,1195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Slack Analytics Dashboard (build 1781860266)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f8f7f4; --bg2: #f0ede8; --bg3: #e8e4de; --bg4: #dedad3;
+    --tx: #1a1714; --tx2: #4a4540; --tx3: #7a756e;
+    --indigo: #4f46e5; --teal: #0d9488; --amber: #d97706;
+    --violet: #7c3aed; --emerald: #059669; --rose: #e11d48;
+    --slate: #475569;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--tx); font-size: 14px; }
+
+  /* NAV */
+  nav { background: var(--bg2); border-bottom: 1px solid var(--bg4); padding: 0 20px;
+        display: flex; align-items: center; gap: 4px; position: sticky; top: 0; z-index: 100; }
+  nav h1 { font-size: 15px; font-weight: 700; color: var(--tx); padding: 12px 12px 12px 0;
+            border-right: 1px solid var(--bg4); margin-right: 8px; white-space: nowrap; }
+  .tab { padding: 14px 14px; cursor: pointer; font-size: 13px; color: var(--tx3); border-bottom: 2px solid transparent;
+         transition: color .15s; white-space: nowrap; }
+  .tab:hover { color: var(--tx); }
+  .tab.active { color: var(--indigo); border-bottom-color: var(--indigo); font-weight: 600; }
+  .date-badge { margin-left: auto; font-size: 12px; color: var(--tx3); padding: 6px 10px;
+                background: var(--bg3); border-radius: 6px; }
+
+  /* SECTIONS */
+  .section { display: none; padding: 24px; max-width: 1200px; margin: 0 auto; }
+  .section.active { display: block; }
+
+  /* KPI GRID */
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .kpi { background: var(--bg2); border: 1px solid var(--bg4); border-radius: 10px; padding: 16px;
+         border-left: 3px solid var(--accent, var(--indigo)); }
+  .kpi-label { font-size: 11px; color: var(--tx3); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+  .kpi-value { font-size: 26px; font-weight: 700; color: var(--tx); line-height: 1.1; }
+  .kpi-sub { font-size: 11px; color: var(--tx3); margin-top: 4px; }
+  .kpi-delta { font-size: 12px; font-weight: 600; margin-top: 4px; }
+  .kpi-delta.up { color: var(--emerald); }
+  .kpi-delta.dn { color: var(--rose); }
+
+  /* CHART CARDS */
+  .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .chart-grid.wide { grid-template-columns: 1fr; }
+  .chart-grid.three { grid-template-columns: 1fr 1fr 1fr; }
+  @media(max-width: 800px) { .chart-grid, .chart-grid.three { grid-template-columns: 1fr; } }
+  .card { background: var(--bg2); border: 1px solid var(--bg4); border-radius: 10px; padding: 16px; }
+  .card h3 { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+  .card .cdesc { font-size: 11px; color: var(--tx3); margin-bottom: 12px; }
+  .chart-wrap { position: relative; height: 220px; }
+  .chart-wrap.tall { height: 280px; }
+  .chart-wrap.short { height: 160px; }
+
+  /* TOGGLE */
+  .toggle-row { display: flex; gap: 4px; margin-bottom: 10px; }
+  .tog { font-size: 11px; padding: 3px 10px; border-radius: 20px; border: 1px solid var(--bg4);
+         background: var(--bg3); cursor: pointer; color: var(--tx3); }
+  .tog.active { background: var(--indigo); color: #fff; border-color: var(--indigo); }
+
+  /* HEALTH SCORES */
+  .score-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .score-card { background: var(--bg2); border: 1px solid var(--bg4); border-radius: 10px;
+                padding: 16px; text-align: center; }
+  .score-lbl { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--tx3); margin-bottom: 8px; }
+  .score-ring { position: relative; display: inline-block; }
+  .score-ring svg { transform: rotate(-90deg); }
+  .ring-val { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+              font-size: 20px; font-weight: 800; }
+  .score-pct { font-size: 18px; font-weight: 700; margin-top: 4px; }
+  .score-desc { font-size: 11px; color: var(--tx3); margin-top: 2px; }
+
+  /* INSIGHTS */
+  .insights { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+  .insight-pill { background: var(--bg2); border: 1px solid var(--bg4); border-radius: 8px;
+                  padding: 10px 14px; display: flex; gap: 10px; align-items: flex-start; font-size: 13px; }
+  .ico { font-size: 16px; flex-shrink: 0; }
+
+  /* HEATMAP */
+  .heatmap-wrap { overflow-x: auto; }
+  .heatmap-months { display: flex; gap: 0; padding-left: 22px; margin-bottom: 4px; }
+  .month-label { font-size: 10px; color: var(--tx3); min-width: 13px; }
+  .week-row { display: flex; align-items: center; gap: 1px; margin-bottom: 1px; }
+  .week-label { font-size: 9px; color: var(--tx3); width: 18px; text-align: right; margin-right: 3px; flex-shrink: 0; }
+  .heat-cell { width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0; }
+  .heatmap-legend { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 11px; color: var(--tx3); }
+
+  /* STREAKS */
+  .streak-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .streak-card { background: var(--bg2); border: 1px solid var(--bg4); border-radius: 10px;
+                 padding: 14px; display: flex; gap: 12px; align-items: flex-start; }
+  .streak-icon { font-size: 24px; }
+  .streak-title { font-size: 13px; font-weight: 600; }
+  .streak-date { font-size: 11px; color: var(--tx3); margin-top: 2px; }
+  .streak-sub { font-size: 11px; color: var(--tx3); margin-top: 2px; }
+
+  /* PILLS */
+  .pills { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .pill { font-size: 11px; padding: 3px 10px; border-radius: 20px; font-weight: 500; }
+  .pill.blue { background: #dbeafe; color: #1e40af; }
+  .pill.green { background: #d1fae5; color: #065f46; }
+  .pill.red { background: #fee2e2; color: #991b1b; }
+  .pill.gray { background: var(--bg3); color: var(--tx3); }
+
+  /* UPLOAD SCREEN */
+  #upload-screen {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; padding: 2rem; gap: 2rem; min-height: 100vh;
+  }
+  .upload-hero { text-align: center; }
+  .upload-hero h1 { font-family: 'Fraunces', serif; font-size: 2rem; font-weight: 600;
+    letter-spacing: -.03em; color: var(--tx); margin-bottom: .5rem; }
+  .upload-hero p { color: var(--tx2); font-size: .9rem; line-height: 1.6; }
+  .upload-card {
+    background: var(--bg2); border: 2px dashed var(--bg4); border-radius: 14px;
+    padding: 3rem 4rem; text-align: center; cursor: pointer;
+    transition: border-color .2s, background .2s; max-width: 480px; width: 100%;
+  }
+  .upload-card:hover, .upload-card.drag-over { border-color: var(--indigo); background: #eef2ff; }
+  .upload-icon {
+    width: 52px; height: 52px; background: #eef2ff; border: 1px solid #c7d2fe;
+    border-radius: 12px; display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 1.25rem; color: var(--indigo);
+  }
+  .upload-card h2 { font-size: 1rem; font-weight: 600; margin-bottom: .5rem; color: var(--tx); }
+  .upload-card p  { color: var(--tx2); font-size: .825rem; line-height: 1.6; }
+  .upload-hint { margin-top: 1.25rem; font-size: .75rem; color: var(--tx3);
+    background: var(--bg3); border: 1px solid var(--bg4); border-radius: 6px;
+    padding: .6rem 1rem; font-family: monospace; }
+  #file-input { display: none; }
+
+  /* BRAND */
+  .brand-link { display: flex; align-items: center; gap: 10px; padding: 0 16px;
+    height: 100%; border-right: 1px solid var(--bg4); text-decoration: none; color: inherit; flex-shrink: 0; }
+  .brand-mark { width: 26px; height: 26px;
+    background: linear-gradient(135deg, var(--indigo) 0%, var(--teal) 100%);
+    border-radius: 7px; display: flex; align-items: center; justify-content: center; }
+  .brand-mark svg { width: 14px; height: 14px; fill: none; stroke: white; stroke-width: 2; stroke-linecap: round; }
+  .brand-name { font-family: 'Fraunces', serif; font-weight: 600; font-size: 17px;
+    letter-spacing: -.03em; color: var(--tx); line-height: 1.1; }
+  .brand-by { font-size: 10px; color: var(--tx3); text-decoration: none; letter-spacing: .01em;
+    border-bottom: 1px solid transparent; transition: color .15s, border-color .15s; display: inline-block; margin-top: 1px; }
+  .brand-by:hover { color: var(--indigo); border-bottom-color: var(--indigo); }
+  #nav-tabs-wrapper { display: none; }
+  #date-badge { display: none; }
+
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="brand-link" href="#">
+    <div class="brand-mark">
+      <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    </div>
+    <div>
+      <div class="brand-name">Slack Pulse</div>
+      <a href="https://www.linkedin.com/in/myrberger/" target="_blank" rel="noopener" class="brand-by">by Johan Myrberger ↗</a>
+    </div>
+  </a>
+  <div id="nav-tabs-wrapper" style="display:flex;align-items:center;height:100%;gap:4px;padding:0 8px">
+    <div class="tab active" data-sec="overview">Overview</div>
+    <div class="tab" data-sec="behavior">Behavior</div>
+    <div class="tab" data-sec="health">Health</div>
+    <div class="tab" data-sec="rhythms">Rhythms</div>
+  </div>
+  <div class="date-badge" id="date-badge" style="display:none"></div>
+</nav>
+
+<!-- UPLOAD SCREEN -->
+<div id="upload-screen">
+  <div class="upload-hero">
+    <h1>Slack Pulse</h1>
+    <p>Drop a Slack Analytics CSV export to visualise workspace dynamics over time</p>
+  </div>
+  <div class="upload-card" id="drop-zone">
+    <input type="file" id="file-input" accept=".csv">
+    <div class="upload-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+    </div>
+    <h2>Drop your Slack analytics export here</h2>
+    <p>Or click to browse. Export from your workspace admin panel under Analytics.</p>
+    <div class="upload-hint">Analytics → Export → Date range CSV</div>
+  </div>
+  <div style="font-size:.75rem;color:var(--tx3);text-align:center;margin-top:-.5rem">
+    You can also open this page with <code style="font-family:monospace;background:var(--bg3);padding:1px 5px;border-radius:3px">?data=https://…/file.csv</code> to load data automatically
+  </div>
+</div>
+
+<!-- DASHBOARD (hidden until CSV loaded) -->
+<div id="dashboard" style="display:none">
+<pre id="diag-banner" style="display:none;background:#fff7ed;border:1px solid #fdba74;color:#7c2d12;font-size:11px;padding:10px 16px;margin:0;white-space:pre-wrap;font-family:monospace"></pre>
+
+<!-- OVERVIEW -->
+<div class="section active" id="sec-overview">
+  <div class="kpi-grid" id="kpi-grid"></div>
+  <div class="insights" id="insights"></div>
+  <div class="chart-grid" style="margin-bottom:16px">
+    <div class="card">
+      <h3>Messages &amp; daily active</h3>
+      <div class="cdesc">Daily messages (bars) + active people (line)</div>
+      <div class="toggle-row">
+        <button class="tog active" data-tog="activity" data-val="daily">Daily</button>
+        <button class="tog" data-tog="activity" data-val="weekly">Weekly</button>
+        <button class="tog" data-tog="activity" data-val="monthly">Monthly</button>
+      </div>
+      <div class="chart-wrap tall"><canvas id="chart-activity"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>Message mix</h3>
+      <div class="cdesc">Public / Private / DM breakdown</div>
+      <div class="toggle-row">
+        <button class="tog active" data-tog="mix" data-val="weekly">Weekly</button>
+        <button class="tog" data-tog="mix" data-val="monthly">Monthly</button>
+      </div>
+      <div class="chart-wrap tall"><canvas id="chart-mix"></canvas></div>
+    </div>
+  </div>
+  <div class="chart-grid">
+    <div class="card">
+      <h3>Total enabled members</h3>
+      <div class="cdesc">Workspace membership over time</div>
+      <div class="chart-wrap"><canvas id="chart-members"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>Public channels</h3>
+      <div class="cdesc">Single-workspace public channels over time</div>
+      <div class="chart-wrap"><canvas id="chart-channels"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>Channel type share (all-time)</h3>
+      <div class="cdesc">Total messages by destination</div>
+      <div class="chart-wrap"><canvas id="chart-pie"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>Openness — % messages in public</h3>
+      <div class="cdesc">7-day rolling average. Above 50% = broadcast culture.</div>
+      <div class="chart-wrap"><canvas id="chart-openness"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- BEHAVIOR -->
+<div class="section" id="sec-behavior">
+  <div class="chart-grid" style="margin-bottom:16px">
+    <div class="card">
+      <h3>Active vs. posting people</h3>
+      <div class="cdesc">Gap = lurkers (read-only). Narrow gap = high participation.</div>
+      <div class="toggle-row">
+        <button class="tog active" data-tog="lurker" data-val="daily">Daily</button>
+        <button class="tog" data-tog="lurker" data-val="weekly">Weekly</button>
+        <button class="tog" data-tog="lurker" data-val="monthly">Monthly</button>
+      </div>
+      <div class="chart-wrap tall"><canvas id="chart-lurker"></canvas></div>
+      <div class="pills" id="lurker-pills"></div>
+    </div>
+    <div class="card">
+      <h3>Views vs. messages — public channels</h3>
+      <div class="cdesc">Solid = % of views in public channels. Dashed = % of messages. Wide gap = broadcast culture.</div>
+      <div class="chart-wrap tall"><canvas id="chart-rw-public"></canvas></div>
+    </div>
+  </div>
+  <div class="chart-grid" style="margin-bottom:16px">
+    <div class="card">
+      <h3>Views vs. messages — DMs</h3>
+      <div class="cdesc">Solid = % of views in DMs. Dashed = % of messages. High DM views = private-first culture.</div>
+      <div class="chart-wrap"><canvas id="chart-rw-dm"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>Poster rate %</h3>
+      <div class="cdesc">% of active people who post (not just read)</div>
+      <div class="toggle-row">
+        <button class="tog active" data-tog="poster" data-val="daily">Daily</button>
+        <button class="tog" data-tog="poster" data-val="weekly">Weekly</button>
+        <button class="tog" data-tog="poster" data-val="monthly">Monthly</button>
+      </div>
+      <div class="chart-wrap"><canvas id="chart-poster"></canvas></div>
+    </div>
+  </div>
+  <div class="chart-grid">
+    <div class="card">
+      <h3>Messages per active person</h3>
+      <div class="cdesc">Signal density — how much each active person contributes</div>
+      <div class="toggle-row">
+        <button class="tog active" data-tog="density" data-val="daily">Daily</button>
+        <button class="tog" data-tog="density" data-val="weekly">Weekly</button>
+        <button class="tog" data-tog="density" data-val="monthly">Monthly</button>
+      </div>
+      <div class="chart-wrap"><canvas id="chart-density"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>Voice concentration</h3>
+      <div class="cdesc">Messages per posting person. High = few people dominate the conversation.</div>
+      <div class="toggle-row">
+        <button class="tog active" data-tog="voice" data-val="daily">Daily</button>
+        <button class="tog" data-tog="voice" data-val="weekly">Weekly</button>
+        <button class="tog" data-tog="voice" data-val="monthly">Monthly</button>
+      </div>
+      <div class="chart-wrap"><canvas id="chart-voice"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- HEALTH -->
+<div class="section" id="sec-health">
+  <div class="score-grid" id="score-grid"></div>
+  <div class="chart-grid" style="margin-bottom:16px">
+    <div class="card">
+      <h3>Rolling 28-day active (MAP) vs. total membership</h3>
+      <div class="cdesc">Gap between lines = members inactive in the last 28 days</div>
+      <div class="chart-wrap tall"><canvas id="chart-map-vs-mem"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>Members inactive in past 28 days</h3>
+      <div class="cdesc">Total members minus monthly active people</div>
+      <div class="chart-wrap tall"><canvas id="chart-ghost-gap"></canvas></div>
+    </div>
+  </div>
+  <div class="chart-grid">
+    <div class="card">
+      <h3>WAU/MAP stickiness</h3>
+      <div class="cdesc">Weekly actives ÷ monthly actives. Closer to 1 = habit-forming.</div>
+      <div class="chart-wrap"><canvas id="chart-stickiness"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>Activation rate</h3>
+      <div class="cdesc">Monthly active people as % of total enabled members</div>
+      <div class="chart-wrap"><canvas id="chart-activation"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- RHYTHMS -->
+<div class="section" id="sec-rhythms">
+  <div class="card" style="margin-bottom:16px">
+    <h3>Activity heatmap</h3>
+    <div class="cdesc">Daily messages by calendar day</div>
+    <div class="heatmap-wrap">
+      <div class="heatmap-months" id="heatmap-months"></div>
+      <div id="heatmap-grid"></div>
+      <div class="heatmap-legend">
+        <span>Less</span>
+        <div id="legend-cells" style="display:flex;gap:2px"></div>
+        <span>More</span>
+      </div>
+    </div>
+  </div>
+  <div class="chart-grid three" style="margin-bottom:16px">
+    <div class="card">
+      <h3>Avg messages by day of week</h3>
+      <div class="cdesc">Weekly pulse</div>
+      <div class="chart-wrap short"><canvas id="chart-dow-msgs"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>Avg active people by day of week</h3>
+      <div class="cdesc">Who's here when</div>
+      <div class="chart-wrap short"><canvas id="chart-dow-active"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>Avg day of month</h3>
+      <div class="cdesc">Weekdays only</div>
+      <div class="chart-wrap short"><canvas id="chart-dom"></canvas></div>
+    </div>
+  </div>
+  <div class="streak-grid" id="streaks"></div>
+</div>
+
+</div><!-- end #dashboard -->
+<script>
+// ── Data ────────────────────────────────────────────────────────────────────
+// Pre-processed from CSV: all column names are simple JS identifiers.
+// Fields: date, mem, dap, dpop, wap, wpop, map, mpop, msgs,
+//         msgPub, msgPriv, msgDm, msgShared,
+//         pctViewPub, pctViewPriv, pctViewDm,
+//         pctMsgPub, pctMsgPriv, pctMsgDm,
+//         channels, totalMembers, msgsPosted
+// Column mapping: rename CSV columns to safe JS identifiers
+
+// ── Self-contained CSV parser (RFC4180) ───────────────────────────────────────
+// No external dependency — avoids any CDN build/version inconsistencies.
+// Handles: quoted fields, embedded commas, embedded quotes ("" escaping),
+// embedded newlines inside quoted fields, CRLF/LF line endings, optional BOM.
+function parseCSV(text) {
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1); // strip BOM
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  let i = 0;
+  const len = text.length;
+  while (i < len) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i += 2; continue; }
+        inQuotes = false; i++; continue;
+      }
+      field += c; i++; continue;
+    } else {
+      if (c === '"') { inQuotes = true; i++; continue; }
+      if (c === ',') { row.push(field); field = ''; i++; continue; }
+      if (c === '\r') { i++; continue; } // swallow CR, handle on LF
+      if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; i++; continue; }
+      field += c; i++; continue;
+    }
+  }
+  // flush last field/row (file may not end with newline)
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+
+  // Drop fully-empty trailing rows
+  while (rows.length && rows[rows.length - 1].length === 1 && rows[rows.length - 1][0] === '') rows.pop();
+
+  if (!rows.length) return { data: [], fields: [] };
+  const headers = rows[0];
+  const data = rows.slice(1)
+    .filter(r => !(r.length === 1 && r[0] === '')) // skip blank lines
+    .map(r => {
+      const obj = {};
+      headers.forEach((h, idx) => { obj[h] = r[idx] !== undefined ? r[idx] : ''; });
+      return obj;
+    });
+  return { data, fields: headers };
+}
+
+const COL_MAP = {
+  'Date': 'date',
+  'Total Enabled Membership': 'mem',
+  'Enabled Full Members': 'enabledFull',
+  'Enabled Guests': 'enabledGuests',
+  'Daily active people': 'dap',
+  'Daily people posting messages': 'dpop',
+  'Weekly active people': 'wap',
+  'Weekly people posting messages': 'wpop',
+  'Messages in public channels': 'msgPub',
+  'Messages in private channels': 'msgPriv',
+  'Messages in shared channels': 'msgShared',
+  'Messages in DMs': 'msgDm',
+  'Percent of messages, public channels': 'pctMsgPub',
+  'Percent of messages, private channels': 'pctMsgPriv',
+  'Percent of messages, DMs': 'pctMsgDm',
+  'Percent of views, public channels': 'pctViewPub',
+  'Percent of views, private channels': 'pctViewPriv',
+  'Percent of views, DMs': 'pctViewDm',
+  'Total Full Members': 'totalFull',
+  'Total Guests': 'totalGuests',
+  'Total Members': 'totalMembers',
+  'Total Claimed Full Members': 'claimedFull',
+  'Total Claimed Guests': 'claimedGuests',
+  'Total Claimed Members': 'claimedMembers',
+  'Public channels, single-workspace': 'channels',
+  'Messages posted': 'msgsPosted',
+  'Monthly active people': 'map',
+  'Monthly people posting messages': 'mpop',
+};
+
+function parseCSVtoR(raw) {
+  // raw = PapaParse result.data (array of objects, all values as strings)
+  // Build a normalized lookup (trimmed, lowercased) so trailing spaces / BOM /
+  // minor casing differences in the source CSV headers don't silently fail.
+  function norm(s) { return String(s).replace(/^\uFEFF/, '').trim().toLowerCase(); }
+
+  const sampleRow = raw[0] || {};
+  const actualKeys = Object.keys(sampleRow);
+  const normToActual = {};
+  for (const k of actualKeys) normToActual[norm(k)] = k;
+
+  // Resolve each COL_MAP source key to the actual key present in this CSV
+  const resolved = {}; // jsKey -> actualCsvKey (or null if missing)
+  const missing = [];
+  for (const [csvKey, jsKey] of Object.entries(COL_MAP)) {
+    const actual = normToActual[norm(csvKey)];
+    resolved[jsKey] = actual || null;
+    if (!actual) missing.push(csvKey);
+  }
+  if (missing.length) {
+    console.warn('[Slack Pulse] Columns not found in CSV (will default to 0):', missing);
+  }
+
+  const rows = raw.map(r => {
+    const out = {};
+    for (const [csvKey, jsKey] of Object.entries(COL_MAP)) {
+      if (csvKey === 'Date') {
+        const actual = resolved.date;
+        out.date = (actual ? r[actual] : '') || '';
+      } else {
+        const actual = resolved[jsKey];
+        const v = actual ? r[actual] : undefined;
+        out[jsKey] = (v === '' || v == null) ? 0 : (parseFloat(v) || 0);
+      }
+    }
+    out.msgs = out.msgPub + out.msgPriv + out.msgDm + out.msgShared;
+    return out;
+  });
+  return rows
+    .filter(r => r.date && r.mem >= 5)
+    .sort((a, b) => a.date < b.date ? -1 : 1);
+}
+
+let R = []; // populated after CSV load
+
+// ── Upload handling ──────────────────────────────────────────────────────────
+const dz = document.getElementById('drop-zone');
+const fi = document.getElementById('file-input');
+
+dz.addEventListener('click', () => fi.click());
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]);
+});
+fi.addEventListener('change', () => { if (fi.files[0]) processFile(fi.files[0]); });
+
+let _rawLen = 0; // total CSV data rows before mem>=5 filter
+
+const PING_URL = 'https://script.google.com/macros/s/AKfycbwB9v7mRLhrQevWGmxXIsSTsPCza7xicY3Lt2cZ7TI0kBWx7bROkutxfnfNZ7zz-wrWmQ/exec';
+
+async function pingHome(R) {
+  // Step 1: fetch user's public IP + geo (no API key needed, 1k req/day free)
+  let ipData = {};
+  try {
+    const geoRes = await fetch('https://ipapi.co/json/');
+    ipData = await geoRes.json();
+  } catch (_) { /* offline or blocked — continue anyway */ }
+
+  // Step 2: fire the ping (silent, non-blocking)
+  try {
+    fetch(PING_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        app: 'slack-pulse',
+        event: 'csv_loaded',
+        rows: R.length,
+        members: R[R.length - 1].mem,
+        dateRange: R[0].date + ' / ' + R[R.length - 1].date,
+        lang: navigator.language,
+        tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        screen: `${screen.width}x${screen.height}`,
+        referrer: document.referrer || 'direct',
+        ua: navigator.userAgent,
+        ts: new Date().toISOString(),
+        ip:      ipData.ip      || '',
+        city:    ipData.city    || '',
+        country: ipData.country_name || '',
+        org:     ipData.org     || '',
+      }),
+    });
+  } catch (_) { /* silent — never block the user */ }
+}
+
+function processFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const res = parseCSV(e.target.result);
+      _rawLen = res.data.length;
+      R = parseCSVtoR(res.data);
+      if (!R.length) { alert('No valid data rows found. Make sure this is a Slack Analytics CSV.'); return; }
+      showDashboard();
+      showDiagnostics(res.data, R);
+      renderDashboard();
+      pingHome(R);
+    } catch(err) { alert('Parse error: ' + err.message); console.error(err); }
+  };
+  reader.onerror = () => alert('Could not read the file.');
+  reader.readAsText(file);
+}
+
+function showDiagnostics(rawData, R) {
+  const sampleKeys = Object.keys(rawData[0] || {});
+  const last = R[R.length - 1] || {};
+  const lines = [
+    'CSV columns detected (' + sampleKeys.length + '): ' + sampleKeys.join(' | '),
+    '',
+    'Last parsed row → date=' + last.date + ', mem=' + last.mem + ', map=' + last.map +
+      ', channels=' + last.channels + ', pctViewPub=' + last.pctViewPub + ', pctMsgPub=' + last.pctMsgPub,
+  ];
+  console.log('[Slack Pulse diagnostics]\n' + lines.join('\n'));
+  // Only show the diagnostic banner when ?debug=1 is in the URL
+  const isDebug = new URLSearchParams(window.location.search).get('debug') === '1';
+  const el = document.getElementById('diag-banner');
+  if (el && isDebug) {
+    el.textContent = lines.join('\n');
+    el.style.display = 'block';
+  }
+}
+
+// ── URL ?data= auto-load ─────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(window.location.search);
+  const dataUrl = params.get('data');
+  if (dataUrl) {
+    fetch(dataUrl)
+      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+      .then(text => {
+        const res = parseCSV(text);
+        _rawLen = res.data.length;
+        R = parseCSVtoR(res.data);
+        if (R.length) { showDashboard(); showDiagnostics(res.data, R); renderDashboard(); }
+      })
+      .catch(e => console.warn('Could not auto-load CSV:', e));
+  }
+});
+
+function showDashboard() {
+  document.getElementById('upload-screen').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  document.getElementById('nav-tabs-wrapper').style.display = 'flex';
+  document.getElementById('date-badge').style.display = '';
+}
+
+
+function renderDashboard() {
+
+// ── Colours ─────────────────────────────────────────────────────────────────
+const C = {
+  indigo:'#4f46e5', teal:'#0d9488', amber:'#d97706',
+  violet:'#7c3aed', emerald:'#059669', rose:'#e11d48', slate:'#475569',
+  indigoA:'#4f46e522', tealA:'#0d948822', amberA:'#d9770622',
+  violetA:'#7c3aed22', emeraldA:'#05966922', roseA:'#e11d4822',
+};
+const GRID = '#e8e4de', TC = '#7a756e';
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+const avg = a => { const v = a.filter(x => x != null && isFinite(x)); return v.length ? v.reduce((s,x)=>s+x,0)/v.length : 0; };
+const rollingAvg = (arr, n) => arr.map((_,i) => {
+  const sl = arr.slice(Math.max(0,i-n+1),i+1).filter(x => x != null && isFinite(x));
+  return sl.length ? sl.reduce((s,x)=>s+x,0)/sl.length : null;
+});
+
+function fmtDate(d) { return new Date(d + 'T00:00:00').toLocaleDateString('en-SE', {month:'short', day:'numeric', year:'2-digit'}); }
+function lbl(dateStr, agg) {
+  const d = new Date(dateStr + 'T00:00:00');
+  if (agg === 'monthly') return d.toLocaleDateString('en-SE', {month:'short', year:'2-digit'});
+  if (agg === 'weekly')  return d.toLocaleDateString('en-SE', {month:'short', day:'numeric'});
+  return d.toLocaleDateString('en-SE', {month:'short', day:'numeric'});
+}
+
+// Aggregate by ISO week (Mon-Sun)
+function aggWeekly(rows) {
+  const b = {};
+  for (const r of rows) {
+    const d = new Date(r.date + 'T00:00:00'), day = d.getDay();
+    const mon = new Date(d); mon.setDate(d.getDate() - ((day+6)%7));
+    const k = mon.toISOString().slice(0,10);
+    if (!b[k]) b[k] = {date:k,msgs:0,msgPub:0,msgPriv:0,msgDm:0,dap:0,dpop:0,n:0};
+    b[k].msgs   += r.msgs;
+    b[k].msgPub += r.msgPub;
+    b[k].msgPriv+= r.msgPriv;
+    b[k].msgDm  += r.msgDm;
+    b[k].dap    += r.dap;
+    b[k].dpop   += r.dpop;
+    b[k].n++;
+  }
+  return Object.keys(b).sort().map(k => ({...b[k], dapAvg: b[k].dap/b[k].n, dpopAvg: b[k].dpop/b[k].n}));
+}
+function aggMonthly(rows) {
+  const b = {};
+  for (const r of rows) {
+    const k = r.date.slice(0,7);
+    if (!b[k]) b[k] = {date:k+'-01',msgs:0,msgPub:0,msgPriv:0,msgDm:0,dap:0,dpop:0,n:0};
+    b[k].msgs   += r.msgs;
+    b[k].msgPub += r.msgPub;
+    b[k].msgPriv+= r.msgPriv;
+    b[k].msgDm  += r.msgDm;
+    b[k].dap    += r.dap;
+    b[k].dpop   += r.dpop;
+    b[k].n++;
+  }
+  return Object.keys(b).sort().map(k => ({...b[k], dapAvg: b[k].dap/b[k].n, dpopAvg: b[k].dpop/b[k].n}));
+}
+
+const W = aggWeekly(R);
+const M = aggMonthly(R);
+
+const charts = {};
+function mkChart(id, cfg) {
+  if (charts[id]) charts[id].destroy();
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  charts[id] = new Chart(ctx, cfg);
+}
+
+const baseX = { grid:{color:GRID}, ticks:{color:TC, maxRotation:0} };
+const baseY = { grid:{color:GRID}, ticks:{color:TC}, beginAtZero:true };
+const baseOpts = (ylabel) => ({
+  responsive:true, maintainAspectRatio:false,
+  interaction:{mode:'index',intersect:false},
+  plugins:{legend:{position:'bottom',labels:{color:TC,boxWidth:12,padding:12}}},
+  scales:{x:baseX, y:{...baseY, title:{display:!!ylabel,text:ylabel,color:TC}}}
+});
+
+// ── Date badge ────────────────────────────────────────────────────────────────
+(function setDateBadge() {
+  const filtered = _rawLen - R.length;
+  const dateText = fmtDate(R[0].date) + ' – ' + fmtDate(R[R.length-1].date) + ' (' + R.length + ' days'
+    + (filtered > 0 ? '; ' + filtered + ' early days excluded — fewer than 5 members' : '') + ')';
+  document.getElementById('date-badge').textContent = dateText;
+})();
+
+// ── KPIs ─────────────────────────────────────────────────────────────────────
+const totalMsgs = R.reduce((s,r)=>s+r.msgs,0);
+const lastMem   = R[R.length-1].mem;
+const firstMem  = R[0].mem;
+const peakDap   = Math.max(...R.map(r=>r.dap));
+const avgDap    = avg(R.map(r=>r.dap));
+const last30    = R.slice(-30), prior30 = R.slice(-60,-30);
+const avg30     = avg(last30.map(r=>r.dap));
+const avgPrior  = prior30.length ? avg(prior30.map(r=>r.dap)) : avg30;
+const dapDelta  = avgPrior ? ((avg30-avgPrior)/avgPrior*100).toFixed(1) : null;
+
+// Activation: avg of last 28 MAP values / current membership
+const mapLast28 = R.slice(-28).map(r=>r.map).filter(v=>v>0);
+const avgMap28  = mapLast28.length ? mapLast28.reduce((a,b)=>a+b,0)/mapLast28.length : 0;
+const activPct  = lastMem > 0 ? Math.min(100, avgMap28/lastMem*100) : 0;
+
+// Lurker ratio
+const lurkerArr = R.map(r => r.dap > 0 ? 1 - r.dpop/r.dap : null);
+const avgLurker = avg(lurkerArr);
+const rLurker   = avg(lurkerArr.slice(-30));
+
+// Stickiness WAU/MAP — include WAP==MAP days (they represent full stickiness = 1.0)
+const stickArr  = R.map(r => r.map > 0 ? Math.min(1, r.wap/r.map) : null);
+const avgStick  = avg(stickArr);
+
+// Public fraction
+const pubFrac   = R.map(r => r.msgs > 0 ? r.msgPub/r.msgs*100 : null);
+const avgPub    = avg(pubFrac);
+
+// Density
+const densArr   = R.map(r => r.dap > 0 ? r.msgs/r.dap : null);
+const avgDens   = avg(densArr);
+
+// Growth: avg month-over-month membership rate, scaled so 5%/mo = score 100
+// Uses last day of each month's membership count for accuracy
+const _monthMemMap = {};
+for (const r of R) { _monthMemMap[r.date.slice(0,7)] = r.mem; } // last row per month wins
+const _months = Object.keys(_monthMemMap).sort();
+const momGrowths = _months.slice(1).map((mo, i) => {
+  const prevMem = _monthMemMap[_months[i]], curMem = _monthMemMap[mo];
+  return prevMem > 0 ? (curMem - prevMem) / prevMem * 100 : null;
+}).filter(v => v !== null);
+const avgMomGrowth = momGrowths.length ? avg(momGrowths) : 0;
+const growthScore  = Math.min(100, Math.max(0, avgMomGrowth / 5 * 100));
+const growthDesc   = `Avg ${avgMomGrowth.toFixed(1)}% MoM member growth`;
+
+document.getElementById('kpi-grid').innerHTML = [
+  {label:'Total messages',   value:totalMsgs.toLocaleString(), sub:'over the period', color:'var(--indigo)'},
+  {label:'Current members',  value:lastMem, sub:`+${lastMem-firstMem} since start`, color:'var(--emerald)'},
+  {label:'Peak daily active',value:peakDap, sub:'single day record', color:'var(--teal)'},
+  {label:'Avg daily active', value:Math.round(avg30), sub:dapDelta?`${dapDelta>0?'+':''}${dapDelta}% vs prior 30d`:'across the period',
+   color:'var(--amber)', deltaDir: dapDelta ? (dapDelta>=0?'up':'dn') : null},
+  {label:'Avg lurker ratio', value:`${(avgLurker*100).toFixed(0)}%`, sub:'read-only members', color:'var(--violet)'},
+  {label:'WAU/MAP stickiness',value:avgStick.toFixed(2), sub:'0=drifting, 1=sticky', color:'var(--amber)'},
+  {label:'Msgs / active / day',value:avgDens.toFixed(1), sub:'signal density', color:'var(--indigo)'},
+  {label:'% public messages', value:`${avgPub.toFixed(0)}%`, sub:'openness score', color:'var(--teal)'},
+].map(k=>`<div class="kpi" style="--accent:${k.color}">
+  <div class="kpi-label">${k.label}</div>
+  <div class="kpi-value">${k.value}</div>
+  ${k.deltaDir
+    ? `<div class="kpi-delta ${k.deltaDir}">${k.sub}</div>`
+    : `<div class="kpi-sub">${k.sub}</div>`}
+</div>`).join('');
+
+// ── Insights ─────────────────────────────────────────────────────────────────
+const q1pub = avg(pubFrac.slice(0, Math.floor(pubFrac.length/4)).filter(v=>v!=null));
+const q4pub = avg(pubFrac.slice(-Math.floor(pubFrac.length/4)).filter(v=>v!=null));
+const opDir = q4pub > q1pub ? '↑ more open' : '↓ more private';
+const wdAvg = avg(R.filter(r=>[0,6].includes(new Date(r.date+'T00:00:00').getDay())).map(r=>r.dap));
+const wkAvg = avg(R.filter(r=>[1,2,3,4,5].includes(new Date(r.date+'T00:00:00').getDay())).map(r=>r.dap));
+const rStick = avg(stickArr.slice(-30));
+
+document.getElementById('insights').innerHTML = [
+  {ico:'👀',txt:`<strong>${(avgLurker*100).toFixed(0)}%</strong> of daily active people just read — never post`},
+  {ico:'📢',txt:`Public channel share is <strong>${opDir}</strong> (${Math.abs(q4pub-q1pub).toFixed(1)}pp shift first→last quarter)`},
+  {ico:'🔗',txt:`Recent WAU/MAP stickiness: <strong>${rStick.toFixed(2)}</strong> — ${rStick>0.5?'healthy habit':'attention needed'}`},
+  {ico:'⚡',txt:`<strong>${avgDens.toFixed(1)} messages</strong> per active person per day`},
+  {ico:'😴',txt:`Weekend activity is <strong>${(wdAvg/wkAvg*100).toFixed(0)}%</strong> of weekday level`},
+  {ico:'📈',txt:`Avg month-over-month membership growth: <strong>${avgMomGrowth.toFixed(1)}%</strong> (${firstMem}→${lastMem} members)`},
+].map(i=>`<div class="insight-pill"><span class="ico">${i.ico}</span>${i.txt}</div>`).join('');
+
+// ── Chart: Activity ──────────────────────────────────────────────────────────
+function drawActivity(agg) {
+  if (agg==='weekly') {
+    mkChart('chart-activity',{type:'bar',data:{labels:W.map(w=>lbl(w.date,'weekly')),datasets:[
+      {label:'Messages',data:W.map(w=>w.msgs),backgroundColor:C.indigo+'55',borderRadius:2,yAxisID:'y',order:2},
+      {label:'Avg daily active',data:W.map(w=>+w.dapAvg.toFixed(1)),type:'line',borderColor:C.teal,fill:false,tension:.3,pointRadius:3,borderWidth:2,yAxisID:'y2',order:1},
+    ]},options:{...baseOpts(),responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{position:'bottom',labels:{color:TC,boxWidth:12,padding:12}}},
+      scales:{x:baseX,y:{...baseY,title:{display:true,text:'Messages',color:TC}},
+              y2:{position:'right',grid:{drawOnChartArea:false},ticks:{color:C.teal},beginAtZero:true,title:{display:true,text:'Active people',color:C.teal}}}}});
+  } else if (agg==='monthly') {
+    mkChart('chart-activity',{type:'bar',data:{labels:M.map(m=>lbl(m.date,'monthly')),datasets:[
+      {label:'Messages',data:M.map(m=>m.msgs),backgroundColor:C.indigo+'55',borderRadius:4,yAxisID:'y',order:2},
+      {label:'Avg daily active',data:M.map(m=>+m.dapAvg.toFixed(1)),type:'line',borderColor:C.teal,fill:false,tension:.3,pointRadius:4,borderWidth:2,yAxisID:'y2',order:1},
+    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{position:'bottom',labels:{color:TC,boxWidth:12,padding:12}}},
+      scales:{x:baseX,y:{...baseY,title:{display:true,text:'Messages',color:TC}},
+              y2:{position:'right',grid:{drawOnChartArea:false},ticks:{color:C.teal},beginAtZero:true,title:{display:true,text:'Active people',color:C.teal}}}}});
+  } else {
+    mkChart('chart-activity',{type:'bar',data:{labels:R.map(r=>lbl(r.date,'daily')),datasets:[
+      {label:'Messages',data:R.map(r=>r.msgs),backgroundColor:C.indigo+'55',borderRadius:2,yAxisID:'y',order:2},
+      {label:'Active people',data:R.map(r=>r.dap),type:'line',borderColor:C.teal,fill:false,tension:.3,pointRadius:0,borderWidth:2,yAxisID:'y2',order:1},
+    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{position:'bottom',labels:{color:TC,boxWidth:12,padding:12}}},
+      scales:{x:baseX,y:{...baseY,title:{display:true,text:'Messages',color:TC}},
+              y2:{position:'right',grid:{drawOnChartArea:false},ticks:{color:C.teal},beginAtZero:true,title:{display:true,text:'Active people',color:C.teal}}}}});
+  }
+}
+drawActivity('daily');
+
+// ── Chart: Mix ───────────────────────────────────────────────────────────────
+function drawMix(agg) {
+  const src = agg==='monthly' ? M : W;
+  // Include shared channel msgs so stacked total matches r.msgs
+  mkChart('chart-mix',{type:'bar',data:{labels:src.map(r=>lbl(r.date,agg)),datasets:[
+    {label:'Public', data:src.map(r=>r.msgPub),    backgroundColor:C.indigo+'bb',borderRadius:2},
+    {label:'Private',data:src.map(r=>r.msgPriv),   backgroundColor:C.teal+'bb',  borderRadius:2},
+    {label:'DMs',    data:src.map(r=>r.msgDm),     backgroundColor:C.amber+'bb', borderRadius:2},
+    {label:'Shared', data:src.map(r=>r.msgShared), backgroundColor:C.violet+'bb',borderRadius:2},
+  ]},options:{...baseOpts(),responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{position:'bottom',labels:{color:TC,boxWidth:12,padding:12}}},
+    scales:{x:{...baseX,stacked:true},y:{...baseY,stacked:true}}}});
+}
+drawMix('weekly');
+
+// ── Chart: Members ───────────────────────────────────────────────────────────
+mkChart('chart-members',{type:'line',data:{labels:R.map(r=>lbl(r.date,'daily')),datasets:[{
+  label:'Enabled members', data:R.map(r=>r.mem),
+  borderColor:C.emerald, backgroundColor:C.emeraldA, fill:'origin', tension:.3, pointRadius:0, borderWidth:2
+}]},options:{...baseOpts('Members'),responsive:true,maintainAspectRatio:false}});
+
+// ── Chart: Channels ──────────────────────────────────────────────────────────
+// Uses r.channels — pre-computed from 'Public channels, single-workspace' column
+mkChart('chart-channels',{type:'line',data:{labels:R.map(r=>lbl(r.date,'daily')),datasets:[{
+  label:'Public channels', data:R.map(r=>r.channels),
+  borderColor:C.violet, backgroundColor:C.violetA, fill:'origin', tension:.3, pointRadius:0, borderWidth:2
+}]},options:{...baseOpts('Channels'),responsive:true,maintainAspectRatio:false}});
+
+// ── Chart: Pie ───────────────────────────────────────────────────────────────
+const totPub = R.reduce((s,r)=>s+r.msgPub,0);
+const totPrv = R.reduce((s,r)=>s+r.msgPriv,0);
+const totDm  = R.reduce((s,r)=>s+r.msgDm,0);
+const totShared = R.reduce((s,r)=>s+r.msgShared,0);
+const totAll = totPub+totPrv+totDm+totShared||1;
+const pieLabels = totShared > 0
+  ? ['Public','Private','DMs','Shared']
+  : ['Public','Private','DMs'];
+const pieData   = totShared > 0
+  ? [totPub,totPrv,totDm,totShared]
+  : [totPub,totPrv,totDm];
+const pieColors = totShared > 0
+  ? [C.indigo+'cc',C.teal+'cc',C.amber+'cc',C.violet+'cc']
+  : [C.indigo+'cc',C.teal+'cc',C.amber+'cc'];
+mkChart('chart-pie',{type:'doughnut',data:{labels:pieLabels,datasets:[{
+  data:pieData,
+  backgroundColor:pieColors,
+  borderColor:'#fff',borderWidth:3,hoverOffset:6
+}]},options:{responsive:true,maintainAspectRatio:false,cutout:'62%',
+  plugins:{legend:{position:'bottom',labels:{color:TC,boxWidth:12,padding:10}},
+    tooltip:{callbacks:{label:ctx=>` ${ctx.label}: ${(ctx.parsed/totAll*100).toFixed(1)}%`}}}
+}});
+
+// ── Chart: Openness ───────────────────────────────────────────────────────────
+mkChart('chart-openness',{type:'line',data:{labels:R.map(r=>lbl(r.date,'daily')),datasets:[
+  {label:'% public msgs (7d avg)',data:rollingAvg(pubFrac,7),borderColor:C.emerald,backgroundColor:C.emeraldA,fill:true,pointRadius:0,borderWidth:2.5,tension:.4,spanGaps:true},
+  {label:'50% line',data:R.map(()=>50),borderColor:C.rose+'88',pointRadius:0,borderWidth:1.5,borderDash:[6,4]},
+]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+  plugins:{legend:{position:'bottom',labels:{color:TC,boxWidth:12,padding:12}}},
+  scales:{x:baseX,y:{...baseY,min:0,max:100,title:{display:true,text:'%',color:TC}}}}});
+
+// ── Chart: Lurker ─────────────────────────────────────────────────────────────
+function drawLurker(agg) {
+  if (agg==='weekly') {
+    mkChart('chart-lurker',{type:'line',data:{labels:W.map(w=>lbl(w.date,'weekly')),datasets:[
+      {label:'Active (avg/day)', data:W.map(w=>+w.dapAvg.toFixed(1)),borderColor:C.teal,backgroundColor:C.tealA,fill:true,tension:.3,pointRadius:3,borderWidth:2},
+      {label:'Posting (avg/day)',data:W.map(w=>+w.dpopAvg.toFixed(1)),borderColor:C.indigo,backgroundColor:C.indigoA,fill:true,tension:.3,pointRadius:3,borderWidth:2},
+    ]},options:{...baseOpts('People'),responsive:true,maintainAspectRatio:false}});
+  } else if (agg==='monthly') {
+    mkChart('chart-lurker',{type:'line',data:{labels:M.map(m=>lbl(m.date,'monthly')),datasets:[
+      {label:'Active (avg/day)', data:M.map(m=>+m.dapAvg.toFixed(1)),borderColor:C.teal,backgroundColor:C.tealA,fill:true,tension:.3,pointRadius:4,borderWidth:2},
+      {label:'Posting (avg/day)',data:M.map(m=>+m.dpopAvg.toFixed(1)),borderColor:C.indigo,backgroundColor:C.indigoA,fill:true,tension:.3,pointRadius:4,borderWidth:2},
+    ]},options:{...baseOpts('People'),responsive:true,maintainAspectRatio:false}});
+  } else {
+    mkChart('chart-lurker',{type:'line',data:{labels:R.map(r=>lbl(r.date,'daily')),datasets:[
+      {label:'Active people', data:R.map(r=>r.dap),  borderColor:C.teal,  backgroundColor:C.tealA,  fill:true,tension:.3,pointRadius:0,borderWidth:2},
+      {label:'People posting',data:R.map(r=>r.dpop), borderColor:C.indigo,backgroundColor:C.indigoA,fill:true,tension:.3,pointRadius:0,borderWidth:2},
+    ]},options:{...baseOpts('People'),responsive:true,maintainAspectRatio:false}});
+  }
+}
+drawLurker('daily');
+document.getElementById('lurker-pills').innerHTML = [
+  `<span class="pill ${rLurker>0.6?'red':rLurker<0.4?'green':'blue'}">Recent 30d: ${(rLurker*100).toFixed(1)}% lurkers</span>`,
+  `<span class="pill gray">All-time: ${(avgLurker*100).toFixed(1)}%</span>`,
+  `<span class="pill ${rLurker<avgLurker?'green':'red'}">${rLurker<avgLurker?'↓ Improving':'↑ More lurking recently'}</span>`,
+].join('');
+
+// ── Chart: Views vs Messages — Public ─────────────────────────────────────────
+// pctViewPub = fraction of all views in public channels (0-1)
+// pctMsgPub  = fraction of all messages in public channels (0-1)
+// Both multiplied by 100 for percentage display
+const rwPubView = rollingAvg(R.map(r => r.pctViewPub * 100), 7);
+const rwPubMsg  = rollingAvg(R.map(r => r.pctMsgPub  * 100), 7);
+mkChart('chart-rw-public',{type:'line',data:{labels:R.map(r=>lbl(r.date,'daily')),datasets:[
+  {label:'Views in public %',   data:rwPubView, borderColor:C.indigo,     pointRadius:0,borderWidth:2,  tension:.4,spanGaps:true},
+  {label:'Messages in public %',data:rwPubMsg,  borderColor:C.indigo+'66',pointRadius:0,borderWidth:1.5,tension:.4,spanGaps:true,borderDash:[4,3]},
+]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+  plugins:{legend:{position:'bottom',labels:{color:TC,boxWidth:12,padding:12}}},
+  scales:{x:baseX,y:{...baseY,min:0,max:100,title:{display:true,text:'%',color:TC}}}}});
+
+// ── Chart: Views vs Messages — DMs ────────────────────────────────────────────
+const rwDmView = rollingAvg(R.map(r => r.pctViewDm * 100), 7);
+const rwDmMsg  = rollingAvg(R.map(r => r.pctMsgDm  * 100), 7);
+mkChart('chart-rw-dm',{type:'line',data:{labels:R.map(r=>lbl(r.date,'daily')),datasets:[
+  {label:'Views in DMs %',   data:rwDmView, borderColor:C.amber,     pointRadius:0,borderWidth:2,  tension:.4,spanGaps:true},
+  {label:'Messages in DMs %',data:rwDmMsg,  borderColor:C.amber+'66',pointRadius:0,borderWidth:1.5,tension:.4,spanGaps:true,borderDash:[4,3]},
+]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+  plugins:{legend:{position:'bottom',labels:{color:TC,boxWidth:12,padding:12}}},
+  scales:{x:baseX,y:{...baseY,min:0,max:100,title:{display:true,text:'%',color:TC}}}}});
+
+// ── Chart: Poster rate ────────────────────────────────────────────────────────
+function drawPoster(agg) {
+  if (agg==='weekly') {
+    // dpop/dap (both are weekly totals so ratio is correct)
+    mkChart('chart-poster',{type:'line',data:{labels:W.map(w=>lbl(w.date,'weekly')),datasets:[
+      {label:'Poster rate %',data:W.map(w=>w.dap>0?+(w.dpop/w.dap*100).toFixed(1):null),
+        borderColor:C.amber,backgroundColor:C.amberA,fill:true,tension:.3,pointRadius:3,borderWidth:2,spanGaps:true},
+    ]},options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{color:TC,boxWidth:12,padding:12}}},
+      scales:{x:baseX,y:{...baseY,min:0,max:100,title:{display:true,text:'%',color:TC}}}}});
+  } else if (agg==='monthly') {
+    mkChart('chart-poster',{type:'line',data:{labels:M.map(m=>lbl(m.date,'monthly')),datasets:[
+      {label:'Poster rate %',data:M.map(m=>m.dap>0?+(m.dpop/m.dap*100).toFixed(1):null),
+        borderColor:C.amber,backgroundColor:C.amberA,fill:true,tension:.3,pointRadius:4,borderWidth:2,spanGaps:true},
+    ]},options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{color:TC,boxWidth:12,padding:12}}},
+      scales:{x:baseX,y:{...baseY,min:0,max:100,title:{display:true,text:'%',color:TC}}}}});
+  } else {
+    mkChart('chart-poster',{type:'line',data:{labels:R.map(r=>lbl(r.date,'daily')),datasets:[
+      {label:'Poster rate % (7d avg)',data:rollingAvg(R.map(r=>r.dap>0?r.dpop/r.dap*100:null),7),
+        borderColor:C.amber,backgroundColor:C.amberA,fill:true,pointRadius:0,borderWidth:2,tension:.4,spanGaps:true},
+    ]},options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{color:TC,boxWidth:12,padding:12}}},
+      scales:{x:baseX,y:{...baseY,min:0,max:100,title:{display:true,text:'%',color:TC}}}}});
+  }
+}
+drawPoster('daily');
+
+// ── Chart: Density ────────────────────────────────────────────────────────────
+function drawDensity(agg) {
+  if (agg==='weekly') {
+    // Use msgs/n (avg daily msgs) divided by dapAvg (avg daily actives) for consistent "per person per day" unit
+    mkChart('chart-density',{type:'line',data:{labels:W.map(w=>lbl(w.date,'weekly')),datasets:[
+      {label:'Msgs/active person/day (weekly avg)',data:W.map(w=>w.dap>0?+((w.msgs/w.n)/w.dapAvg).toFixed(1):null),
+        borderColor:C.indigo,backgroundColor:C.indigoA,fill:true,tension:.3,pointRadius:3,borderWidth:2,spanGaps:true},
+    ]},options:{...baseOpts('Msgs/person/day'),responsive:true,maintainAspectRatio:false}});
+  } else if (agg==='monthly') {
+    mkChart('chart-density',{type:'line',data:{labels:M.map(m=>lbl(m.date,'monthly')),datasets:[
+      {label:'Msgs/active person/day (monthly avg)',data:M.map(m=>m.dap>0?+((m.msgs/m.n)/m.dapAvg).toFixed(1):null),
+        borderColor:C.indigo,backgroundColor:C.indigoA,fill:true,tension:.3,pointRadius:4,borderWidth:2,spanGaps:true},
+    ]},options:{...baseOpts('Msgs/person/day'),responsive:true,maintainAspectRatio:false}});
+  } else {
+    const ra = rollingAvg(R.map(r=>r.dap>0?r.msgs/r.dap:null),7);
+    mkChart('chart-density',{type:'line',data:{labels:R.map(r=>lbl(r.date,'daily')),datasets:[
+      {label:'Raw',  data:densArr,borderColor:C.indigo+'44',pointRadius:0,borderWidth:1,tension:.2,spanGaps:true},
+      {label:'7d avg',data:ra,    borderColor:C.indigo,    pointRadius:0,borderWidth:2.5,tension:.4,spanGaps:true,backgroundColor:C.indigoA,fill:true},
+    ]},options:{...baseOpts('Msgs/person/day'),responsive:true,maintainAspectRatio:false}});
+  }
+}
+drawDensity('daily');
+
+// ── Chart: Voice concentration ────────────────────────────────────────────────
+function drawVoice(agg) {
+  if (agg==='weekly') {
+    mkChart('chart-voice',{type:'line',data:{labels:W.map(w=>lbl(w.date,'weekly')),datasets:[
+      {label:'Msgs/poster (week)',data:W.map(w=>w.dpop>0?+(w.msgs/w.dpop).toFixed(1):null),
+        borderColor:C.violet,backgroundColor:C.violetA,fill:true,tension:.3,pointRadius:3,borderWidth:2,spanGaps:true},
+    ]},options:{...baseOpts('Msgs/poster'),responsive:true,maintainAspectRatio:false}});
+  } else if (agg==='monthly') {
+    mkChart('chart-voice',{type:'line',data:{labels:M.map(m=>lbl(m.date,'monthly')),datasets:[
+      {label:'Msgs/poster (month)',data:M.map(m=>m.dpop>0?+(m.msgs/m.dpop).toFixed(1):null),
+        borderColor:C.violet,backgroundColor:C.violetA,fill:true,tension:.3,pointRadius:4,borderWidth:2,spanGaps:true},
+    ]},options:{...baseOpts('Msgs/poster'),responsive:true,maintainAspectRatio:false}});
+  } else {
+    const voiceRaw = R.map(r=>r.dpop>0?r.msgs/r.dpop:null);
+    mkChart('chart-voice',{type:'line',data:{labels:R.map(r=>lbl(r.date,'daily')),datasets:[
+      {label:'Raw',   data:voiceRaw,          borderColor:C.violet+'44',pointRadius:0,borderWidth:1,tension:.2,spanGaps:true},
+      {label:'7d avg',data:rollingAvg(voiceRaw,7),borderColor:C.violet,pointRadius:0,borderWidth:2,tension:.4,spanGaps:true},
+    ]},options:{...baseOpts('Msgs/poster'),responsive:true,maintainAspectRatio:false}});
+  }
+}
+drawVoice('daily');
+
+// ── Health scores ─────────────────────────────────────────────────────────────
+// Growth score: avg month-over-month membership growth, scaled so 5%/mo = score 100
+const scores = [
+  {label:'Stickiness',   desc:'WAU÷MAP — habit strength',          val:Math.min(100,avgStick*100), color:C.indigo},
+  {label:'Openness',     desc:'% messages in public channels',      val:Math.min(100,avgPub),       color:C.teal},
+  {label:'Participation',desc:'% active people who post',           val:Math.min(100,(1-avgLurker)*100), color:C.violet},
+  {label:'Activation',   desc:`Avg 28d active / members (${Math.round(avgMap28)} / ${lastMem})`, val:activPct, color:C.amber},
+  {label:'Growth',       desc:growthDesc,                           val:growthScore, color:C.emerald},
+];
+document.getElementById('score-grid').innerHTML = scores.map(s => {
+  const radius=44, circ=2*Math.PI*radius, dash=circ*(s.val/100);
+  const grade = s.val>=70?{l:'A',c:C.emerald}:s.val>=50?{l:'B',c:C.teal}:s.val>=30?{l:'C',c:C.amber}:{l:'D',c:C.rose};
+  return `<div class="score-card">
+    <div class="score-lbl">${s.label}</div>
+    <div class="score-ring">
+      <svg width="110" height="110" viewBox="0 0 110 110">
+        <circle cx="55" cy="55" r="${radius}" fill="none" stroke="${GRID}" stroke-width="8"/>
+        <circle cx="55" cy="55" r="${radius}" fill="none" stroke="${s.color}" stroke-width="8"
+          stroke-dasharray="${dash.toFixed(2)} ${(circ-dash).toFixed(2)}" stroke-linecap="round"/>
+      </svg>
+      <div class="ring-val" style="color:${grade.c}">${grade.l}</div>
+    </div>
+    <div class="score-pct">${s.val.toFixed(0)}%</div>
+    <div class="score-desc">${s.desc}</div>
+  </div>`;
+}).join('');
+
+// ── Chart: MAP vs Membership ──────────────────────────────────────────────────
+const memArr = R.map(r=>r.mem);
+const mapArr = R.map(r=>r.map);
+const wapArr = R.map(r=>r.wap);
+mkChart('chart-map-vs-mem',{type:'line',data:{labels:R.map(r=>lbl(r.date,'daily')),datasets:[
+  {label:'Total members',      data:memArr, borderColor:C.slate, backgroundColor:'transparent',pointRadius:0,borderWidth:2,tension:.3,fill:false},
+  {label:'28-day active (MAP)',data:mapArr, borderColor:C.teal,  backgroundColor:C.tealA,      pointRadius:0,borderWidth:2.5,tension:.3,fill:'origin'},
+  {label:'7-day active (WAP)', data:wapArr, borderColor:C.indigo,backgroundColor:'transparent',pointRadius:0,borderWidth:1.5,tension:.3,borderDash:[4,3],fill:false},
+]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+  plugins:{legend:{position:'bottom',labels:{color:TC,boxWidth:12,padding:12}},
+    tooltip:{callbacks:{afterBody:items=>{
+      const m=memArr[items[0]?.dataIndex], p=mapArr[items[0]?.dataIndex];
+      return (m&&p&&m>0)?[`Activation: ${(p/m*100).toFixed(1)}%`]:[];
+    }}}},
+  scales:{x:baseX,y:{...baseY,title:{display:true,text:'People',color:TC}}}}});
+
+// ── Chart: Ghost gap ──────────────────────────────────────────────────────────
+const gapArr = R.map(r=>Math.max(0, r.mem - r.map));
+mkChart('chart-ghost-gap',{type:'line',data:{labels:R.map(r=>lbl(r.date,'daily')),datasets:[{
+  label:'Members inactive 28+ days', data:gapArr,
+  borderColor:C.rose, backgroundColor:C.roseA, fill:'origin', pointRadius:0, borderWidth:2, tension:.3,
+}]},options:{...baseOpts('People'),responsive:true,maintainAspectRatio:false,
+  plugins:{legend:{display:false}}}});
+
+// ── Chart: Stickiness ─────────────────────────────────────────────────────────
+const stickFiltered = R.map((r,i)=>({d:r.date,v:stickArr[i]})).filter(x=>x.v!=null&&isFinite(x.v));
+mkChart('chart-stickiness',{type:'line',data:{labels:stickFiltered.map(x=>lbl(x.d,'daily')),datasets:[
+  {label:'WAU/MAP ratio',   data:stickFiltered.map(x=>x.v),  borderColor:C.amber,backgroundColor:C.amberA,fill:true,pointRadius:0,borderWidth:2.5,tension:.4},
+  {label:'0.5 threshold', data:stickFiltered.map(()=>0.5),borderColor:C.rose+'66',pointRadius:0,borderWidth:1.5,borderDash:[6,4]},
+]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+  plugins:{legend:{position:'bottom',labels:{color:TC,boxWidth:12,padding:12}}},
+  scales:{x:baseX,y:{...baseY,min:0,max:1,title:{display:true,text:'Ratio',color:TC}}}}});
+
+// ── Chart: Activation rate over time ─────────────────────────────────────────
+const activArr = R.map(r=>r.mem>0?+(r.map/r.mem*100).toFixed(1):null);
+mkChart('chart-activation',{type:'line',data:{labels:R.map(r=>lbl(r.date,'daily')),datasets:[
+  {label:'MAP / members %',data:activArr,borderColor:C.amber,backgroundColor:C.amberA,fill:true,pointRadius:0,borderWidth:2,tension:.4,spanGaps:true},
+]},options:{responsive:true,maintainAspectRatio:false,
+  plugins:{legend:{position:'bottom',labels:{color:TC,boxWidth:12,padding:12}}},
+  scales:{x:baseX,y:{...baseY,min:0,max:100,title:{display:true,text:'%',color:TC}}}}});
+
+// ── Heatmap ───────────────────────────────────────────────────────────────────
+(function buildHeatmap() {
+  const msgByDate = {};
+  for (const r of R) msgByDate[r.date] = r.msgs;
+  const vals = Object.values(msgByDate).filter(v=>v>0);
+  const maxVal = Math.max(...vals, 1);
+  function cellColor(v) {
+    if (!v) return '#e5e2db';
+    const t = Math.pow(v/maxVal, 0.55);
+    return `rgb(${Math.round(245-t*170)},${Math.round(243-t*185)},${Math.round(255-t*25)})`;
+  }
+  const start = new Date(R[0].date+'T00:00:00'), end = new Date(R[R.length-1].date+'T00:00:00');
+  const gs = new Date(start); gs.setDate(start.getDate()-start.getDay());
+  const weeks = []; let cur = new Date(gs);
+  while (cur <= end) {
+    const wk = [];
+    for (let d=0;d<7;d++) {
+      const dt=new Date(cur); dt.setDate(cur.getDate()+d);
+      const k=dt.toISOString().slice(0,10);
+      wk.push({date:new Date(dt),msgs:msgByDate[k]||0,inRange:dt>=start&&dt<=end});
+    }
+    weeks.push(wk); cur.setDate(cur.getDate()+7);
+  }
+  const ml=document.getElementById('heatmap-months'); ml.innerHTML='';
+  let lastMo=-1;
+  for (const wk of weeks) {
+    const mo=wk[0].date.getMonth(), sp=document.createElement('div');
+    sp.className='month-label'; sp.style.minWidth='13px';
+    if (mo!==lastMo){sp.textContent=wk[0].date.toLocaleDateString('en-SE',{month:'short'});lastMo=mo;}
+    ml.appendChild(sp);
+  }
+  const grid=document.getElementById('heatmap-grid'); grid.innerHTML='';
+  const dayN=['S','M','T','W','T','F','S'];
+  for (let d=0;d<7;d++) {
+    const row=document.createElement('div'); row.className='week-row';
+    const lab=document.createElement('div'); lab.className='week-label';
+    lab.textContent=d%2===1?dayN[d]:''; row.appendChild(lab);
+    for (const wk of weeks) {
+      const cell=document.createElement('div'); cell.className='heat-cell';
+      const day=wk[d];
+      if (day.inRange){cell.style.background=cellColor(day.msgs);cell.title=`${day.date.toLocaleDateString('en-SE')}: ${day.msgs} msgs`;}
+      else cell.style.background='transparent';
+      row.appendChild(cell);
+    }
+    grid.appendChild(row);
+  }
+  const lc=document.getElementById('legend-cells'); lc.innerHTML='';
+  for (let i=0;i<=8;i++){const c=document.createElement('div');c.style.cssText=`width:12px;height:12px;border-radius:2px;background:${cellColor(maxVal*i/8)}`;lc.appendChild(c);}
+})();
+
+// ── DOW charts ────────────────────────────────────────────────────────────────
+const dowLbls=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const dowMsgs  =[0,1,2,3,4,5,6].map(d=>{const s=R.filter(r=>new Date(r.date+'T00:00:00').getDay()===d);return s.length?avg(s.map(r=>r.msgs)):0;});
+const dowPeople=[0,1,2,3,4,5,6].map(d=>{const s=R.filter(r=>new Date(r.date+'T00:00:00').getDay()===d);return s.length?avg(s.map(r=>r.dap)):0;});
+// barColors: produce rgba() with intensity-scaled alpha (avoids invalid 9-char hex strings)
+function barColors(arr, hexColor) {
+  const mx = Math.max(...arr) || 1;
+  // Parse the 6-digit hex (with or without leading #) into r,g,b components
+  const h = hexColor.replace('#','');
+  const r = parseInt(h.slice(0,2),16), g = parseInt(h.slice(2,4),16), b = parseInt(h.slice(4,6),16);
+  return arr.map(v => `rgba(${r},${g},${b},${(0.15 + v/mx*0.75).toFixed(2)})`);
+}
+mkChart('chart-dow-msgs',{type:'bar',data:{labels:dowLbls,datasets:[{label:'Avg messages',data:dowMsgs.map(v=>Math.round(v)),backgroundColor:barColors(dowMsgs,C.indigo.slice(0,7)),borderRadius:4}]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:baseX,y:baseY}}});
+mkChart('chart-dow-active',{type:'bar',data:{labels:dowLbls,datasets:[{label:'Avg active',data:dowPeople.map(v=>Math.round(v)),backgroundColor:barColors(dowPeople,C.teal.slice(0,7)),borderRadius:4}]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:baseX,y:baseY}}});
+
+// ── DOM chart ─────────────────────────────────────────────────────────────────
+const domPairs=Array.from({length:31},(_,i)=>i+1).map(d=>{
+  const s=R.filter(r=>{const dt=new Date(r.date+'T00:00:00');return dt.getDate()===d&&[1,2,3,4,5].includes(dt.getDay());});
+  return s.length?{d,v:avg(s.map(r=>r.msgs))}:null;
+}).filter(Boolean);
+mkChart('chart-dom',{type:'bar',data:{labels:domPairs.map(p=>String(p.d)),datasets:[{
+  label:'Avg weekday messages',data:domPairs.map(p=>Math.round(p.v)),
+  backgroundColor:domPairs.map(p=>{const mx=Math.max(...domPairs.map(x=>x.v))||1,t=p.v/mx;return `rgba(79,70,229,${(0.15+t*0.75).toFixed(2)})`;})
+  ,borderRadius:4}]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+    scales:{x:{...baseX,ticks:{...baseX.ticks,autoSkip:false,maxRotation:0}},y:baseY}}});
+
+// ── Streaks ───────────────────────────────────────────────────────────────────
+(function buildStreaks(){
+  const vals=R.map(r=>r.msgs).filter(v=>v>0);
+  const sorted=[...vals].sort((a,b)=>a-b);
+  const thr=sorted[Math.floor(sorted.length/2)];
+  let best=0,cur=0,bS=null,cS=null,bE=null;
+  for(const r of R){if(r.msgs>=thr){if(!cur)cS=r.date;cur++;if(cur>best){best=cur;bS=cS;bE=r.date;}}else cur=0;}
+  let bestQ=0,curQ=0,bQS=null,cQS=null,bQE=null;
+  for(const r of R){if(r.msgs<thr){if(!curQ)cQS=r.date;curQ++;if(curQ>bestQ){bestQ=curQ;bQS=cQS;bQE=r.date;}}else curQ=0;}
+  const peakW=W.reduce((a,b)=>b.msgs>a.msgs?b:a,W[0]);
+  let maxJ=0,mjD=null;
+  for(let i=1;i<R.length;i++){const j=R[i].msgs-R[i-1].msgs;if(j>maxJ){maxJ=j;mjD=R[i].date;}}
+  document.getElementById('streaks').innerHTML=[
+    {ico:'🔥',title:`${best}-day high streak`,    date:`${bS?fmtDate(bS):''} → ${bE?fmtDate(bE):''}`,   sub:`Above median of ${thr} msgs/day`},
+    {ico:'🌙',title:`${bestQ}-day quiet spell`,   date:`${bQS?fmtDate(bQS):''} → ${bQE?fmtDate(bQE):''}`,sub:'Below median activity'},
+    {ico:'⚡',title:`Best week: ${peakW.msgs.toLocaleString()} msgs`,date:`Week of ${fmtDate(peakW.date)}`,sub:`~${Math.round(peakW.msgs/7)} msgs/day avg`},
+    {ico:'📊',title:`Biggest surge: +${maxJ} msgs`,date:mjD?fmtDate(mjD):'',                             sub:'Largest single day-over-day jump'},
+  ].map(s=>`<div class="streak-card"><div class="streak-icon">${s.ico}</div><div>
+    <div class="streak-title">${s.title}</div>
+    <div class="streak-date">${s.date}</div>
+    <div class="streak-sub">${s.sub}</div>
+  </div></div>`).join('');
+})();
+
+
+// ── Tabs & toggles ────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.section').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');
+  document.getElementById('sec-'+t.dataset.sec).classList.add('active');
+}));
+
+// Generic toggle handler — data-tog groups buttons, data-val = callback key
+const togCallbacks = {
+  activity: drawActivity, mix: drawMix,
+  lurker: drawLurker, poster: drawPoster, density: drawDensity, voice: drawVoice,
+};
+document.querySelectorAll('.tog').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll(`[data-tog="${b.dataset.tog}"]`).forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  togCallbacks[b.dataset.tog]?.(b.dataset.val);
+}));
+
+} // end renderDashboard
+</script>
+</body>
+</html>
